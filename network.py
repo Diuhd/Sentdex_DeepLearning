@@ -1,33 +1,55 @@
-import numpy as np
+import numpy as np 
+import nnfs
+from nnfs.datasets import spiral_data  # See for code: https://gist.github.com/Sentdex/454cb20ec5acf0e76ee8ab8448e6266c
 
-np.random.seed(0)
+nnfs.init()
 
-X = [[1, 2, 3, 2.5],
-    [2.0, 5.0, -1.0, 2.0],
-    [-1.5, 2.7, 3.3, -0.8]]
+X, y = spiral_data(100, 3)   
 
-inputs = [0, 2, -1, 3.3, -2.7, 1.1, 2.2, -100]
-output = []
-
-for i in inputs:
-    output.append(max(0, i))
 
 class Layer_Dense:
     def __init__(self, n_inputs, n_neurons):
-        # Note that n_inputs, n_neurons is 3, 4 in dataset X
-        # Also, we interchange n_inputs and n_neurons to minimize the transpose process.
         self.weights = 0.10 * np.random.randn(n_inputs, n_neurons)
         self.biases = np.zeros((1, n_neurons))
     def forward(self, inputs):
+        self.inputs = inputs
         self.output = np.dot(inputs, self.weights) + self.biases
+    def backward(self, dvalues):
+        # dvalues -> batch_count * neuron_count
+        # inputs -> batch_count * input_count
+        # weights -> input_count * neuron_count
+        # biases -> 1 * neuron_count
+        self.dweights = np.dot(self.inputs.T, dvalues)
+        self.dinputs = np.dot(dvalues, self.weights.T)
+        self.dbiases = np.sum(dvalues, axis=0, keepdims=True)
+
 
 class Activation_ReLU:
     def forward(self, inputs):
         self.output = np.maximum(0, inputs)
+    def backward(self, dvalues):
+        # dL/db = dL/da*da/dz*dz/db = a'(z) * 1 = 1 if z>0, 0 if z <=0
+        self.dinputs = dvalues.copy()
+        self.dinputs[self.inputs <= 0] = 0
 
-layer1 = Layer_Dense(4, 5)
-layer2 = Layer_Dense(5, 2)
-layer1.forward(X)
-print(layer1.output)
-layer2.forward(layer1.output)
-print(layer2.output)
+class Activation_Softmax:
+    def forward(self, inputs):
+        exp_inputs = np.exp(inputs - np.max(inputs, axis=1, keepdims=True))
+        norm_inputs = exp_inputs / np.sum(exp_inputs, axis=1, keepdims=True)
+        self.output = norm_inputs
+    
+
+class Loss:
+    def calculate(self, output, y):
+        sample_losses = self.forward(output, y)
+        data_loss = np.mean(sample_losses)
+        return data_loss
+
+class CategoricalCrossEntropyLoss(Loss):
+    def forward(self, y_pred, y_true):
+        y_pred_clipped = np.clip(y_pred, 1e-7, 1-1e-7)
+        if len(y_pred.shape) == 1:
+            correct_confidences = y_pred_clipped[range(len(y_pred)), y_true]
+        elif len(y_pred.shape) == 1:
+            correct_confidences = np.sum(y_pred_clipped * y_true, axis=1)
+        return -np.log(correct_confidences)
