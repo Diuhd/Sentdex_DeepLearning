@@ -1,18 +1,34 @@
 import numpy as np
+import neural_network as nn
+from nnfs.datasets import spiral_data
 
-logits = np.array([
-    [2.5, 0.3, -1.7, 3.0],
-    [1.0, 2.2, 0.1, -0.5]
-])
-dvalues = np.array([
-    [1.0, 0.0, 0.0, 0.0],
-    [0.5, -0.5, 0.0, 0.0]
-])
+X, y = spiral_data(samples=100, classes=3)
+dense1 = nn.Layer_Dense(2, 3)
+activation1 = nn.Activation_ReLU()
 
-softmax_output = np.exp(logits) / np.sum(np.exp(logits), axis=1, keepdims=True)
-output = np.empty_like(dvalues)
-for index, (single_dvalue, single_softmax) in enumerate(zip(dvalues, softmax_output)):
-    single_softmax = single_softmax.reshape(-1, 1)
-    jacobian = np.diagflat(single_softmax) - np.dot(single_softmax, single_softmax.T)
-    output[index] = np.dot(jacobian, single_dvalue)
-print(output)
+dense2 = nn.Layer_Dense(3, 3)
+loss_activation = nn.Activation_Softmax_Loss_Categorical_Cross_Entropy()
+
+dense1.forward(X)
+activation1.forward(dense1.output)
+
+dense2.forward(activation1.output)
+loss = loss_activation.forward(activation1.output, y)
+print(loss_activation.output[:5])
+print('loss:', loss)
+
+predictions = np.argmax(loss_activation.output, axis=1)
+if len(y.shape) == 2:
+    y = np.argmax(y, axis=1)
+accuracy = np.mean(predictions==y)
+print(accuracy)
+
+loss_activation.backward(loss_activation.output, y)
+dense2.backward(loss_activation.dinputs)
+activation1.backward(dense2.dinputs)
+dense1.backward(activation1.dinputs)
+# Print gradients
+print(dense1.dweights)
+print(dense1.dbiases)
+print(dense2.dweights)
+print(dense2.dbiases)
