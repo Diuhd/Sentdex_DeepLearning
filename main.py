@@ -1,10 +1,18 @@
 import numpy as np
-inputs = [[1, 2, 3, 2.5],
-          [2.0, 5.0, -1.0, 2.0],
-          [-1.5, 2.7, 3.3, -0.8]]
-weights = [[0.2, 0.8, -0.5, 1.0],
-           [0.5, -0.91, 0.26, -0.5],
-           [-0.26, -0.27, 0.17, 0.87]]
-biases = [2, 3, 0.5]
-output = np.dot(inputs, np.array(weights).T) + biases
+
+logits = np.array([
+    [2.5, 0.3, -1.7, 3.0],
+    [1.0, 2.2, 0.1, -0.5]
+])
+dvalues = np.array([
+    [1.0, 0.0, 0.0, 0.0],
+    [0.5, -0.5, 0.0, 0.0]
+])
+
+softmax_output = np.exp(logits) / np.sum(np.exp(logits), axis=1, keepdims=True)
+output = np.empty_like(dvalues)
+for index, (single_dvalue, single_softmax) in enumerate(zip(dvalues, softmax_output)):
+    single_softmax = single_softmax.reshape(-1, 1)
+    jacobian = np.diagflat(single_softmax) - np.dot(single_softmax, single_softmax.T)
+    output[index] = np.dot(jacobian, single_dvalue)
 print(output)
