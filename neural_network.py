@@ -122,3 +122,77 @@ class Activation_Softmax_Loss_Categorical_Cross_Entropy():
         self.dinputs = dvalues.copy()
         self.dinputs[np.arange(samples), y_idx] -= 1
         self.dinputs /= samples
+
+class Optimizer_SGD:
+    # Note: momentum SGD is based off of classical momentum, not nesterov momentum
+    def __init__(self, learning_rate=1.0, decay=0.0, momentum=0.0) -> None:
+        self.learning_rate = learning_rate
+        self.decay = decay
+        self.iterations = 0
+        self.current_learning_rate = learning_rate
+        self.momentum = momentum
+    def pre_update_params(self):
+        if self.decay:
+            self.current_learning_rate = self.learning_rate * (1. / (1 + self.iterations * self.decay))
+    def update_params(self, layer):
+        if self.momentum:
+            if not hasattr(layer, 'weight_momentums'):
+                layer.weight_momentums = np.zeros_like(layer.weights)
+                layer.bias_momentums = np.zeros_like(layer.biases)
+            weight_updates = self.momentum * layer.weight_momentums - self.current_learning_rate * layer.dweights
+            layer.weight_momentums = weight_updates
+            bias_updates = self.momentum * layer.bias_momentums - self.current_learning_rate * layer.dbiases
+            layer.bias_momentums = bias_updates
+        else:
+            weight_updates = -self.current_learning_rate * layer.dweights
+            bias_updates = -self.current_learning_rate * layer.dbiases
+        layer.weights += weight_updates
+        layer.biases += bias_updates
+    def post_update_params(self):
+        self.iterations += 1
+
+class Optimizer_AdaGrad:
+    def __init__(self, learning_rate=1., decay=0., eps=1e-7) -> None:
+        self.learning_rate = learning_rate
+        self.current_learning_rate = learning_rate
+        self.decay = decay
+        self.iterations = 0
+        self.eps = eps
+    def pre_update_params(self):
+        if self.decay:
+            self.current_learning_rate = self.learning_rate * (1 / (1 + self.decay * self.iterations))
+    def update_params(self, layer):
+        if not hasattr(layer, 'weight_cache'):
+            layer.weight_cache = np.zeros_like(layer.weights)
+            layer.bias_cache = np.zeros_like(layer.biases)
+        layer.weight_cache += layer.dweights ** 2
+        layer.bias_cache += layer.dbiases ** 2
+        layer.weights += -self.current_learning_rate * layer.dweights / (np.sqrt(layer.weight_cache) + self.eps)
+        layer.biases += -self.current_learning_rate * layer.dbiases / (np.sqrt(layer.bias_cache) + self.eps)
+    def post_update_params(self):
+        self.iterations += 1
+
+class Optimizer_RMSProp:
+    def __init__(self, learning_rate=0.001, decay=0., eps=1e-7, rho=0.9) -> None:
+        self.learning_rate = learning_rate
+        self.current_learning_rate = learning_rate
+        self.decay = decay
+        self.eps = eps
+        self.rho = rho
+        self.iterations = 0
+    def pre_update_params(self):
+        if self.decay:
+            self.current_learning_rate = self.learning_rate * 1 / (1 + self.decay * self.iterations)
+    def update_params(self, layer):
+        if not hasattr(layer, 'weight_cache'):
+            layer.weight_cache = np.zeros_like(layer.weights)
+            layer.bias_cache = np.zeros_like(layer.biases)
+        layer.weight_cache = self.rho * layer.weight_cache + (1 - self.rho) * layer.dweights ** 2
+        layer.bias_cache = self.rho * layer.bias_cache + (1 - self.rho) * layer.dbiases ** 2
+        layer.weights += -self.current_learning_rate * layer.dweights / (np.sqrt(layer.weight_cache) + self.eps)
+        layer.biases += -self.current_learning_rate * layer.dbiases / (np.sqrt(layer.bias_cache) + self.eps)
+    def post_update_params(self):
+        self.iterations += 1
+
+
+
