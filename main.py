@@ -5,14 +5,15 @@ from nnfs import init
 
 init()
 
-X, y = spiral_data(samples=100, classes=3)
-dense1 = nn.Layer_Dense(2, 64)
+X, y = spiral_data(samples=1000, classes=3)
+dense1 = nn.Layer_Dense(2, 512, weight_regularizer_l2=5e-4, bias_regularizer_l2=5e-4)
 activation1 = nn.Activation_ReLU()
+dropout1 = nn.Layer_Dropout(0.1)
 
-dense2 = nn.Layer_Dense(64, 3)
+dense2 = nn.Layer_Dense(512, 3)
 loss_activation = nn.Activation_Softmax_Loss_Categorical_Cross_Entropy()
 
-optimizer = nn.Optimizer_RMSProp(learning_rate=0.02, decay=1e-5, rho=0.999)
+optimizer = nn.Optimizer_Adam(learning_rate=0.05, decay=5e-5)
 '''
 1.0 -> Too high, loss gets stuck in 0.6~0.8 (local minimum)
 0.85 -> Still high, loss gets stuck in 0.45~0.8
@@ -23,8 +24,11 @@ optimizer = nn.Optimizer_RMSProp(learning_rate=0.02, decay=1e-5, rho=0.999)
 for epoch in range(10001):
     dense1.forward(X)
     activation1.forward(dense1.output)
-    dense2.forward(activation1.output)
-    loss = loss_activation.forward(dense2.output, y)
+    dropout1.forward(activation1.output)
+    dense2.forward(dropout1.output)
+    data_loss = loss_activation.forward(dense2.output, y)
+    regularization_loss = loss_activation.regularization_loss(dense1) + loss_activation.regularization_loss(dense2)
+    loss = data_loss + regularization_loss
 
     predictions = np.argmax(loss_activation.output, axis=1)
     if len(y.shape) == 2:
@@ -33,15 +37,29 @@ for epoch in range(10001):
 
     if not epoch % 100:
         print(f'epoch: {epoch}, acc: {accuracy:.3f}, ' +
-              f'loss: {loss:.3f}, lr: {optimizer.current_learning_rate}')
+              f'loss: {loss:.3f}, data_loss: {data_loss:.3f}, ' +
+              f'reg_loss: {regularization_loss:.3f}, lr: {optimizer.current_learning_rate:.3f}')
 
     loss_activation.backward(loss_activation.output, y)
     dense2.backward(loss_activation.dinputs)
-    activation1.backward(dense2.dinputs)
+    dropout1.backward(dense2.dinputs)
+    activation1.backward(dropout1.dinputs)
     dense1.backward(activation1.dinputs)
 
     optimizer.pre_update_params()
     optimizer.update_params(dense1)
     optimizer.update_params(dense2)
     optimizer.post_update_params()
+
+X_test, y_test = spiral_data(samples=100, classes=3)
+dense1.forward(X_test)
+activation1.forward(dense1.output)
+dense2.forward(activation1.output)
+loss = loss_activation.forward(dense2.output, y_test)
+predictions = np.argmax(loss_activation.output, axis=1)
+if len(y_test.shape) == 2:
+    y_test = np.argmax(y_test, axis=1)
+accuracy = np.mean(predictions == y_test)
+print(f'validation, acc: {accuracy}, loss: {loss}')
+
 

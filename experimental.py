@@ -1,18 +1,9 @@
 import numpy as np
-
-logits = np.array([
-    [2.5, 0.3, -1.7, 3.0],
-    [1.0, 2.2, 0.1, -0.5]
-])
-dvalues = np.array([
-    [1.0, 0.0, 0.0, 0.0],
-    [0.5, -0.5, 0.0, 0.0]
-])
-
-softmax_output = np.exp(logits) / np.sum(np.exp(logits), axis=1, keepdims=True)
-output = np.empty_like(dvalues)
-for index, (single_dvalue, single_softmax) in enumerate(zip(dvalues, softmax_output)):
-    single_softmax = single_softmax.reshape(-1, 1)
-    jacobian = np.diagflat(single_softmax) - np.dot(single_softmax, single_softmax.T)
-    output[index] = np.dot(jacobian, single_dvalue)
-print(output)
+dropout_rate = 0.2
+example_output = np.array([0.27, -0.37, -1.03, 0.67, 0.99, 0.05, -2.01, 1.13, -0.07, 0.73])
+print(f'sum initial {sum(example_output)}')
+sums = []
+for i in range(10000000):
+    example_output2 = example_output * np.random.binomial(1, 1-dropout_rate, example_output.shape) / (1-dropout_rate)
+    sums.append(sum(example_output2))
+print(f'mean sum: {np.mean(sums)}')
